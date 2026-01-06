@@ -109,6 +109,18 @@ blueprint:
           max: 3600
           unit_of_measurement: seconds
 
+variables:
+  active_state: !input active_state
+  inactive_state: !input inactive_state
+  night_start: !input night_start
+  morning_start: !input morning_start
+  day_start: !input day_start
+  evening_start: !input evening_start
+  night_brightness: !input night_brightness
+  morning_brightness: !input morning_brightness
+  day_brightness: !input day_brightness
+  evening_brightness: !input evening_brightness
+
 triggers:
   - trigger: state
     entity_id: !input presence_sensor
