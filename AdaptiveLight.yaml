@@ -71,6 +71,94 @@ blueprint:
           min: 1
           max: 100
           step: 1
+
+    morning_brightness:
+      name: Morning brightness (%)
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+
+    day_brightness:
+      name: Day brightness (%)
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+
+    evening_brightness:
+      name: Evening brightness (%)
+      default: 80
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+
+    no_motion_wait:
+      name: Wait time
+      description: Time to leave the light on after last motion is detected.
+      default: 120
+      selector:
+        number:
+          min: 0
+          max: 3600
+          unit_of_measurement: seconds
+
+triggers:
+  - trigger: state
+    entity_id: !input presence_sensor
+    to: !input active_state
+  - trigger: state
+    entity_id: !input presence_sensor
+    to: !input inactive_state
+    for: !input no_motion_wait
+
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.to_state.state == active_state }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              brightness_pct: >
+                {% set current_time = now().time() %}
+                {% set night_start = today_at(night_start).time() %}
+                {% set morning_start = today_at(morning_start).time() %}
+                {% set day_start = today_at(day_start).time() %}
+                {% set evening_start = today_at(evening_start).time() %}
+                {% if current_time >= night_start or current_time < morning_start %}
+                  {{ night_brightness }}
+                {% elif current_time >= morning_start and current_time < day_start %}
+                  {{ morning_brightness }}
+                {% elif current_time >= day_start and current_time < evening_start %}
+                  {{ day_brightness }}
+                {% else %}
+                  {{ evening_brightness }}
+                {% endif %}
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.to_state.state == inactive_state }}"
+        sequence:
+          - action: light.turn_off
+            target: !input target_light
+variables:
+  active_state: !input active_state
+  inactive_state: !input inactive_state
+  night_start: !input night_start
+  morning_start: !input morning_start
+  day_start: !input day_start
+  evening_start: !input evening_start
+  night_brightness: !input night_brightness
+  morning_brightness: !input morning_brightness
+  day_brightness: !input day_brightness
+  evening_brightness: !input evening_brightness
           unit_of_measurement: "%"
 
     morning_brightness:
