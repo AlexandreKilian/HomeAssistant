@@ -71,3 +71,101 @@ blueprint:
           min: 1
           max: 100
           step: 1
+          unit_of_measurement: "%"
+
+    morning_brightness:
+      name: Morning brightness (%)
+      default: 35
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+    day_brightness:
+      name: Day brightness (%)
+      default: 80
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+    evening_brightness:
+      name: Evening brightness (%)
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+    transition_seconds:
+      name: Transition seconds
+      default: 0.5
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.1
+          unit_of_measurement: s
+
+triggers:
+  - trigger: state
+    entity_id: !input presence_sensor
+
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.to_state is not none and trigger.to_state.state == (active_state | string) }}"
+        sequence:
+          - variables:
+              night_start_t: !input night_start
+              morning_start_t: !input morning_start
+              day_start_t: !input day_start
+              evening_start_t: !input evening_start
+
+              night_b: !input night_brightness
+              morning_b: !input morning_brightness
+              day_b: !input day_brightness
+              evening_b: !input evening_brightness
+
+              brightness_pct: >-
+                {% set now_m = now().hour * 60 + now().minute %}
+                {% set ns = strptime(night_start_t, '%H:%M:%S') %}
+                {% set ms = strptime(morning_start_t, '%H:%M:%S') %}
+                {% set ds = strptime(day_start_t, '%H:%M:%S') %}
+                {% set es = strptime(evening_start_t, '%H:%M:%S') %}
+                {% set ns_m = ns.hour * 60 + ns.minute %}
+                {% set ms_m = ms.hour * 60 + ms.minute %}
+                {% set ds_m = ds.hour * 60 + ds.minute %}
+                {% set es_m = es.hour * 60 + es.minute %}
+
+                {% if now_m >= ns_m or now_m < ms_m %}
+                  {{ night_b }}
+                {% elif now_m < ds_m %}
+                  {{ morning_b }}
+                {% elif now_m < es_m %}
+                  {{ day_b }}
+                {% else %}
+                  {{ evening_b }}
+                {% endif %}
+
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              brightness_pct: "{{ brightness_pct | int }}"
+              transition: !input transition_seconds
+
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.to_state is not none and trigger.to_state.state == (inactive_state | string) }}"
+        sequence:
+          - action: light.turn_off
+            target: !input target_light
+            data:
+              transition: !input transition_seconds
