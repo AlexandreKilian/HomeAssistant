@@ -1,0 +1,159 @@
+blueprint:
+  name: Motion lights with time-based brightness
+  description: Turn on light(s) on motion, set brightness based on time of day, turn off after no motion for a set delay.
+  domain: automation
+
+  input:
+    motion_sensor:
+      name: Motion sensor
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: motion
+
+    lights:
+      name: Light(s)
+      selector:
+        target:
+          entity:
+            domain: light
+
+    night_start:
+      name: Night starts at
+      default: "23:00:00"
+      selector:
+        time: {}
+
+    morning_start:
+      name: Morning starts at
+      default: "06:00:00"
+      selector:
+        time: {}
+
+    day_start:
+      name: Day starts at
+      default: "09:00:00"
+      selector:
+        time: {}
+
+    evening_start:
+      name: Evening starts at
+      default: "17:00:00"
+      selector:
+        time: {}
+
+    night_brightness:
+      name: Night brightness (%)
+      default: 8
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+    morning_brightness:
+      name: Morning brightness (%)
+      default: 35
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+    day_brightness:
+      name: Day brightness (%)
+      default: 80
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+    evening_brightness:
+      name: Evening brightness (%)
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+    no_motion_delay:
+      name: Turn off after no motion for
+      default:
+        minutes: 2
+      selector:
+        duration: {}
+
+    transition_seconds:
+      name: Transition seconds
+      default: 0.5
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.1
+          unit_of_measurement: s
+
+mode: restart
+
+trigger:
+  - platform: state
+    entity_id: !input motion_sensor
+    to: "on"
+
+variables:
+  night_start_t: !input night_start
+  morning_start_t: !input morning_start
+  day_start_t: !input day_start
+  evening_start_t: !input evening_start
+
+  night_b: !input night_brightness
+  morning_b: !input morning_brightness
+  day_b: !input day_brightness
+  evening_b: !input evening_brightness
+
+  brightness_pct: >-
+    {% set now_m = now().hour * 60 + now().minute %}
+    {% set ns = strptime(night_start_t, '%H:%M:%S') %}
+    {% set ms = strptime(morning_start_t, '%H:%M:%S') %}
+    {% set ds = strptime(day_start_t, '%H:%M:%S') %}
+    {% set es = strptime(evening_start_t, '%H:%M:%S') %}
+    {% set ns_m = ns.hour * 60 + ns.minute %}
+    {% set ms_m = ms.hour * 60 + ms.minute %}
+    {% set ds_m = ds.hour * 60 + ds.minute %}
+    {% set es_m = es.hour * 60 + es.minute %}
+
+    {# Night wraps across midnight: [night_start..24h) or [0..morning_start) #}
+    {% if now_m >= ns_m or now_m < ms_m %}
+      {{ night_b }}
+    {% elif now_m >= ms_m and now_m < ds_m %}
+      {{ morning_b }}
+    {% elif now_m >= ds_m and now_m < es_m %}
+      {{ day_b }}
+    {% else %}
+      {{ evening_b }}
+    {% endif %}
+
+action:
+  - service: light.turn_on
+    target: !input lights
+    data:
+      brightness_pct: "{{ brightness_pct | int }}"
+      transition: !input transition_seconds
+
+  - wait_for_trigger:
+      - platform: state
+        entity_id: !input motion_sensor
+        to: "off"
+
+  - delay: !input no_motion_delay
+
+  - service: light.turn_off
+    target: !input lights
+    data:
+      transition: !input transition_seconds
