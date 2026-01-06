@@ -1,15 +1,28 @@
 blueprint:
-  name: Motion lights with time-based brightness
-  description: Turn on light(s) on motion, set brightness based on time of day, turn off after no motion for a set delay.
+  name: Motion or occupancy lights with time-based brightness
+  description: Turn on light(s) when a presence/occupancy entity becomes active, set brightness by time, then turn off after it becomes inactive and a delay.
   domain: automation
 
   input:
-    motion_sensor:
-      name: Motion sensor
+    presence_entity:
+      name: Presence / occupancy entity
+      description: Can be a binary_sensor (on/off) or a sensor (occupied/clear).
       selector:
-        entity:
-          domain: binary_sensor
-          device_class: motion
+        entity: {}
+
+    active_state:
+      name: Active state value
+      description: Examples: on, occupied, detected
+      default: "on"
+      selector:
+        text: {}
+
+    inactive_state:
+      name: Inactive state value
+      description: Examples: off, clear, undetected
+      default: "off"
+      selector:
+        text: {}
 
     lights:
       name: Light(s)
@@ -82,8 +95,8 @@ blueprint:
           step: 1
           unit_of_measurement: "%"
 
-    no_motion_delay:
-      name: Turn off after no motion for
+    off_delay:
+      name: Turn off after inactive for
       default:
         minutes: 2
       selector:
@@ -103,8 +116,8 @@ mode: restart
 
 trigger:
   - platform: state
-    entity_id: !input motion_sensor
-    to: "on"
+    entity_id: !input presence_entity
+    to: !input active_state
 
 variables:
   night_start_t: !input night_start
@@ -128,12 +141,11 @@ variables:
     {% set ds_m = ds.hour * 60 + ds.minute %}
     {% set es_m = es.hour * 60 + es.minute %}
 
-    {# Night wraps across midnight: [night_start..24h) or [0..morning_start) #}
     {% if now_m >= ns_m or now_m < ms_m %}
       {{ night_b }}
-    {% elif now_m >= ms_m and now_m < ds_m %}
+    {% elif now_m < ds_m %}
       {{ morning_b }}
-    {% elif now_m >= ds_m and now_m < es_m %}
+    {% elif now_m < es_m %}
       {{ day_b }}
     {% else %}
       {{ evening_b }}
@@ -148,10 +160,10 @@ action:
 
   - wait_for_trigger:
       - platform: state
-        entity_id: !input motion_sensor
-        to: "off"
+        entity_id: !input presence_entity
+        to: !input inactive_state
 
-  - delay: !input no_motion_delay
+  - delay: !input off_delay
 
   - service: light.turn_off
     target: !input lights
