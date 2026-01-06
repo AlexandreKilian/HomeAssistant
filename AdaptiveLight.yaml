@@ -1,5 +1,5 @@
 blueprint:
-  name: Presence Light with Time Brightness (motion or occupancy)
+  name: Motion-activated Light with Time Brightness
   description: Turn light(s) on when a motion/occupancy sensor becomes active, set brightness by time, turn off when inactive.
   domain: automation
 
