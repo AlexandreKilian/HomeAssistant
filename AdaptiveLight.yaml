@@ -1,35 +1,43 @@
 blueprint:
-  name: Motion or occupancy lights with time-based brightness
-  description: Turn on light(s) when a presence/occupancy entity becomes active, set brightness by time, then turn off after it becomes inactive and a delay.
+  name: Presence Light with Time Brightness (motion or occupancy)
+  description: Turn light(s) on when a motion/occupancy sensor becomes active, set brightness by time, turn off when inactive.
   domain: automation
 
   input:
-    presence_entity:
-      name: Presence / occupancy entity
-      description: Can be a binary_sensor (on/off) or a sensor (occupied/clear).
+    presence_sensor:
+      name: Motion / Occupancy Sensor
+      description: A binary_sensor that goes active/inactive.
       selector:
-        entity: {}
+        entity:
+          filter:
+            - domain: binary_sensor
+              device_class: motion
+            - domain: binary_sensor
+              device_class: occupancy
+            - domain: binary_sensor
+              device_class: presence
+
+    target_light:
+      name: Lights
+      description: The lights to keep in sync.
+      selector:
+        target:
+          entity:
+            - domain: light
 
     active_state:
-      name: Active state value
-      description: Examples: on, occupied, detected
+      name: Active state
+      description: Usually "on" for binary_sensors. Some integrations use "occupied".
       default: "on"
       selector:
         text: {}
 
     inactive_state:
-      name: Inactive state value
-      description: Examples: off, clear, undetected
+      name: Inactive state
+      description: Usually "off" for binary_sensors. Some integrations use "clear".
       default: "off"
       selector:
         text: {}
-
-    lights:
-      name: Light(s)
-      selector:
-        target:
-          entity:
-            domain: light
 
     night_start:
       name: Night starts at
@@ -63,109 +71,3 @@ blueprint:
           min: 1
           max: 100
           step: 1
-          unit_of_measurement: "%"
-
-    morning_brightness:
-      name: Morning brightness (%)
-      default: 35
-      selector:
-        number:
-          min: 1
-          max: 100
-          step: 1
-          unit_of_measurement: "%"
-
-    day_brightness:
-      name: Day brightness (%)
-      default: 80
-      selector:
-        number:
-          min: 1
-          max: 100
-          step: 1
-          unit_of_measurement: "%"
-
-    evening_brightness:
-      name: Evening brightness (%)
-      default: 60
-      selector:
-        number:
-          min: 1
-          max: 100
-          step: 1
-          unit_of_measurement: "%"
-
-    off_delay:
-      name: Turn off after inactive for
-      default:
-        minutes: 2
-      selector:
-        duration: {}
-
-    transition_seconds:
-      name: Transition seconds
-      default: 0.5
-      selector:
-        number:
-          min: 0
-          max: 10
-          step: 0.1
-          unit_of_measurement: s
-
-mode: restart
-
-trigger:
-  - platform: state
-    entity_id: !input presence_entity
-    to: !input active_state
-
-variables:
-  night_start_t: !input night_start
-  morning_start_t: !input morning_start
-  day_start_t: !input day_start
-  evening_start_t: !input evening_start
-
-  night_b: !input night_brightness
-  morning_b: !input morning_brightness
-  day_b: !input day_brightness
-  evening_b: !input evening_brightness
-
-  brightness_pct: >-
-    {% set now_m = now().hour * 60 + now().minute %}
-    {% set ns = strptime(night_start_t, '%H:%M:%S') %}
-    {% set ms = strptime(morning_start_t, '%H:%M:%S') %}
-    {% set ds = strptime(day_start_t, '%H:%M:%S') %}
-    {% set es = strptime(evening_start_t, '%H:%M:%S') %}
-    {% set ns_m = ns.hour * 60 + ns.minute %}
-    {% set ms_m = ms.hour * 60 + ms.minute %}
-    {% set ds_m = ds.hour * 60 + ds.minute %}
-    {% set es_m = es.hour * 60 + es.minute %}
-
-    {% if now_m >= ns_m or now_m < ms_m %}
-      {{ night_b }}
-    {% elif now_m < ds_m %}
-      {{ morning_b }}
-    {% elif now_m < es_m %}
-      {{ day_b }}
-    {% else %}
-      {{ evening_b }}
-    {% endif %}
-
-action:
-  - service: light.turn_on
-    target: !input lights
-    data:
-      brightness_pct: "{{ brightness_pct | int }}"
-      transition: !input transition_seconds
-
-  - wait_for_trigger:
-      - platform: state
-        entity_id: !input presence_entity
-        to: !input inactive_state
-
-  - delay: !input off_delay
-
-  - service: light.turn_off
-    target: !input lights
-    data:
-      transition: !input transition_seconds
